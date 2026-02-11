@@ -68,15 +68,9 @@ def get_queue():
 def get_history():
     """Get download history"""
     try:
-        limit = int(request.args.get('limit', 50))
-        offset = int(request.args.get('offset', 0))
-        status_filter = request.args.get('status')
-        search_query = request.args.get('search')
-        
-        items = database.get_history(limit, offset, status_filter, search_query)
-        history_data = [item.to_dict() for item in items]
-        
-        return jsonify({'history': history_data})
+        # Server-side history is disabled for privacy/client-side storage policy
+        # Only return empty list or in-memory session history if needed
+        return jsonify({'history': []})
     except Exception as e:
         logging.error(f"Error getting history: {e}")
         return jsonify({'error': str(e)}), 500
@@ -99,8 +93,8 @@ def cancel_download(download_id):
 def get_statistics():
     """Get download statistics"""
     try:
-        stats = database.get_statistics()
-        return jsonify({'statistics': stats.to_dict()})
+        # Database statistics disabled
+        return jsonify({'statistics': {'total': 0, 'completed': 0, 'failed': 0}})
     except Exception as e:
         logging.error(f"Error getting statistics: {e}")
         return jsonify({'error': str(e)}), 500
@@ -154,16 +148,13 @@ def get_formats(url):
 def serve_file(download_id):
     """Serve a downloaded file to the client"""
     try:
-        # Get download item from database or queue
+        # Get download item from queue or active downloads
+        # Since we use move_to_history, check history list in memory
         item = downloader.download_queue.get_by_id(download_id)
         if not item:
-            # Try database
-            # Note: This requires implementing a get_by_id in database manager if not exists
-            # For now, let's search in history if we can, or just rely on queue for active/recent
-            # But the user wants history too.
-            # Let's assume we can get it from the database via a new method or search.
-            # Actually, `downloader.download_queue.history` might have it if loaded.
-            item = next((i for i in downloader.download_queue.history if i.id == download_id), None)
+             # Check in-memory history
+             # Note: downloader.download_queue.history is a list of DownloadItem objects
+             item = next((i for i in downloader.download_queue.history if i.id == download_id), None)
         
         if not item:
              return jsonify({'error': 'Download not found'}), 404

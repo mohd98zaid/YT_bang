@@ -412,6 +412,20 @@ socket.on('download_completed', (item) => {
     item.created_at = new Date().toISOString(); // Ensure timestamp
     saveToHistory(item);
     loadQueue();
+
+    // Auto-download to device
+    try {
+        const link = document.createElement('a');
+        link.href = `/api/serve_file/${item.id}`;
+        link.download = ''; // triggers download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        addLog(`⬇ Downloading file to device...`);
+    } catch (e) {
+        console.error("Auto-download failed", e);
+        addLog(`⚠ Auto-download failed, please use History tab to download.`);
+    }
 });
 
 socket.on('download_failed', (item) => {

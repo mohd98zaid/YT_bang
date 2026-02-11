@@ -14,6 +14,8 @@ import yt_dlp
 from .models import DownloadItem, DownloadQueue, DownloadStatus
 from .config import ConfigManager
 from .database import DatabaseManager
+import tempfile
+import os
 
 
 class WebDownloader:
@@ -36,8 +38,8 @@ class WebDownloader:
         self.running = True
         self.queue_processor_thread: Optional[threading.Thread] = None
         
-        # Load history from database
-        self.load_history()
+        # Load history from database - REMOVED for Client-Side Policy
+        # self.load_history()
     
     def emit_event(self, event: str, data: Any) -> None:
         """Emit SocketIO event"""
@@ -202,8 +204,8 @@ class WebDownloader:
                 item.status = DownloadStatus.COMPLETED.value
                 item.progress = 100
                 self.log(f"[OK] Completed: {item.title}")
-                self.download_queue.move_to_history(item)
-                self.database.add_download(item)
+                self.download_queue.move_to_history(item) # Local queue history only
+                # self.database.add_download(item) # REMOVED for Client-Side Policy
                 self.emit_event('download_completed', item.to_dict())
         
         except yt_dlp.DownloadError as e:
@@ -223,7 +225,7 @@ class WebDownloader:
         item.status = DownloadStatus.CANCELLED.value
         self.log(f"Cancelled: {item.url}")
         self.download_queue.move_to_history(item)
-        self.database.add_download(item)
+        # self.database.add_download(item) # REMOVED for Client-Side Policy
         self.emit_event('download_cancelled', item.to_dict())
     
     def _handle_error(self, item: DownloadItem, error_msg: str) -> None:
@@ -243,7 +245,7 @@ class WebDownloader:
             item.status = DownloadStatus.FAILED.value
             self.log(f"[FAILED] {item.title} - {error_msg}")
             self.download_queue.move_to_history(item)
-            self.database.add_download(item)
+            # self.database.add_download(item) # REMOVED for Client-Side Policy
             self.emit_event('download_failed', item.to_dict())
     
     def queue_processor(self) -> None:
@@ -286,7 +288,9 @@ class WebDownloader:
     
     def add_download(self, url: str, download_type: str, quality: str, options: Dict[str, Any]) -> DownloadItem:
         """Add new download to queue"""
-        download_path = Path(self.config_manager.get("download_path", str(Path.home() / "Downloads")))
+        # Use system temp directory for downloads
+        temp_dir = Path(tempfile.gettempdir()) / "VideoDownloaderWeb_Temp"
+        download_path = temp_dir
         download_path.mkdir(parents=True, exist_ok=True)
         
         output_template = str(download_path / "%(title)s.%(ext)s")
@@ -317,10 +321,11 @@ class WebDownloader:
     def load_history(self) -> None:
         """Load history from database"""
         try:
-            items = self.database.get_history(limit=1000)
-            with self.download_queue.lock:
-                self.download_queue.history = items
-            self.log(f"Loaded {len(items)} history items from database")
+            # items = self.database.get_history(limit=1000)
+            # with self.download_queue.lock:
+            #     self.download_queue.history = items
+            # self.log(f"Loaded {len(items)} history items from database")
+            pass
         except Exception as e:
             logging.error(f"Error loading history: {e}")
     
