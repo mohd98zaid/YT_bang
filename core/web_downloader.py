@@ -258,6 +258,10 @@ class WebDownloader:
                 while active_count < self.max_concurrent:
                     item = self.download_queue.get_next()
                     if item:
+                        # Mark as processing immediately to prevent re-selection by get_next()
+                        item.status = DownloadStatus.PROCESSING.value
+                        self.emit_event('queue_updated', None)
+                        
                         # Submit to thread pool
                         self.executor.submit(self.download_item, item)
                         active_count += 1
