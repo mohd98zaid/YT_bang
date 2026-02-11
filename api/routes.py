@@ -1,10 +1,11 @@
 """
 API routes for the VideoDownloader web application.
 """
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, Response, stream_with_context
 from pathlib import Path
 import logging
 import os
+import requests
 
 api = Blueprint('api', __name__)
 
@@ -159,14 +160,55 @@ def serve_file(download_id):
         if not item:
              return jsonify({'error': 'Download not found'}), 404
              
-        if not item.file_path or not os.path.exists(item.file_path):
-            return jsonify({'error': 'File not found on server'}), 404
-            
-        return send_file(
-            item.file_path,
-            as_attachment=True,
-            download_name=os.path.basename(item.file_path)
-        )
+        # Case 1: File exists on server (Merged format or previously downloaded)
+        if item.file_path and os.path.exists(item.file_path):
+            return send_file(
+                item.file_path,
+                as_attachment=True,
+                download_name=os.path.basename(item.file_path)
+            )
+        
+        # Case 2: Direct URL exists (Single file format) - Proxy Stream
+        elif item.direct_url:
+            try:
+                # Stream the content from the direct URL
+                req = requests.get(item.direct_url, stream=True)
+                
+                # Create a generator to stream chunks
+                def generate():
+                    for chunk in req.iter_content(chunk_size=8192):
+                        if chunk:
+                            yield chunk
+                
+                # Determine filename extension from Content-Type
+                content_type = req.headers.get('Content-Type', '')
+                ext = '.mp4' # Default
+                if 'video/webm' in content_type:
+                    ext = '.webm'
+                elif 'audio/mpeg' in content_type:
+                    ext = '.mp3'
+                elif 'audio/mp4' in content_type:
+                    ext = '.m4a'
+                elif 'video/mp4' in content_type:
+                    ext = '.mp4'
+                
+                # Sanitize title for filename
+                safe_title = "".join([c for c in item.title if c.isalpha() or c.isdigit() or c==' ' or c in ('-','_')]).rstrip()
+                filename = f"{safe_title}{ext}"
+                
+                headers = {
+                    'Content-Disposition': f'attachment; filename="{filename}"',
+                    'Content-Type': content_type or 'video/mp4',
+                    'Content-Length': req.headers.get('Content-Length')
+                }
+                
+                return Response(stream_with_context(generate()), headers=headers)
+            except Exception as e:
+                logging.error(f"Proxy stream error: {e}")
+                return jsonify({'error': f"Stream failed: {str(e)}"}), 500
+
+        else:
+            return jsonify({'error': 'File not found and no direct link available'}), 404
     except Exception as e:
         logging.error(f"Error serving file: {e}")
         return jsonify({'error': str(e)}), 500

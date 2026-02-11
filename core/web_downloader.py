@@ -184,7 +184,7 @@ class WebDownloader:
                     return
                 
                 try:
-                    # Extract info first to check for direct URL
+                    # Extract info first to check for direct URL (Single File)
                     info = ydl.extract_info(item.url, download=False)
                     item.title = info.get('title', 'Unknown')
                     item.channel = info.get('uploader') or info.get('channel')
@@ -193,20 +193,21 @@ class WebDownloader:
                     self.emit_event('download_progress', item.to_dict())
 
                     # Check for direct URL (Single File)
-                    # If requested_formats is present, it's a merged format (Server Download required)
-                    # If not present, and url is present, it's a single file (Direct Download possible)
+                    # If requested_formats is NOT present, and url is present, it's a single file (Direct Download possible via Proxy)
                     if not info.get('requested_formats') and info.get('url'):
                         direct_url = info.get('url')
                         item.status = DownloadStatus.COMPLETED.value
                         item.progress = 100
-                        item.direct_url = direct_url # Add dynamically
-                        self.log(f"[Direct Link] Ready: {item.title}")
-                        self.download_queue.move_to_history(item)
-                        # self.database.add_download(item) # Local DB disabled
+                        item.direct_url = direct_url
+                        # Store essential metadata for proxy
+                        item.file_size = info.get('filesize')
+                        # We don't have file_path yet, serve_file will handle it
                         
-                        # Emit with direct_url
+                        self.log(f"[Streaming Ready] {item.title}")
+                        self.download_queue.move_to_history(item)
+                        
                         data = item.to_dict()
-                        data['direct_url'] = direct_url
+                        data['direct_url'] = direct_url # Frontend doesn't use this directly anymore, but useful debug
                         self.emit_event('download_completed', data)
                         return # Skip server download
 
