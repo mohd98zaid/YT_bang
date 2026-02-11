@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoDownloader Web</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1>
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    VideoDownloader
+                </h1>
+                <div class="header-stats">
+                    <span id="queue-count" class="stat-badge">0 in queue</span>
+                    <span id="active-count" class="stat-badge">0 downloading</span>
+                </div>
+            </div>
+        </header>
+
+        <nav class="tab-nav">
+            <button class="tab-button active" data-tab="download">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                Download
+            </button>
+            <button class="tab-button" data-tab="queue">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                Queue
+            </button>
+            <button class="tab-button" data-tab="history">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                History
+            </button>
+            <button class="tab-button" data-tab="settings">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke="currentColor" stroke-width="2"/>
+                    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" stroke-width="2"/>
+</svg>
+                Settings
+            </button>
+        </nav>
+
+        <main class="app-main">
+            <!-- Download Tab -->
+            <div class="tab-content active" id="download-tab">
+                <div class="card">
+                    <h2>New Download</h2>
+                    <form id="download-form">
+                        <div class="form-group">
+                            <label for="url-input">Video URL</label>
+                            <input type="text" id="url-input" placeholder="Paste video URL here..." required>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="type-select">Type</label>
+                                <select id="type-select">
+                                    <option value="video">Video</option>
+                                    <option value="audio">Audio Only</option>
+                                    <option value="playlist">Playlist</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="quality-select">Quality</label>
+                                <select id="quality-select">
+                                    <option value="Best Available">Best Available</option>
+                                    <option value="2160p (4K)">2160p (4K)</option>
+                                    <option value="1440p (2K)">1440p (2K)</option>
+                                    <option value="1080p (Full HD)">1080p (Full HD)</option>
+                                    <option value="720p (HD)">720p (HD)</option>
+                                    <option value="480p">480p</option>
+                                    <option value="360p">360p</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="format-group" style="display: none;">
+                                <label for="format-select">Audio Format</label>
+                                <select id="format-select">
+                                    <option value="mp3">MP3</option>
+                                    <option value="m4a">M4A</option>
+                                    <option value="wav">WAV</option>
+                                    <option value="flac">FLAC</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="options-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="embed-metadata" checked>
+                                <span>Embed Metadata</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="embed-thumbnail" checked>
+                                <span>Embed Thumbnail</span>
+                            </label>
+                            <label class="checkbox-label" id="subtitles-option">
+                                <input type="checkbox" id="embed-subtitles">
+                                <span>Embed Subtitles</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 4v16m8-8H4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Add to Queue
+                        </button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>Log</h3>
+                    <div id="log-container" class="log-container"></div>
+                </div>
+            </div>
+
+            <!-- Queue Tab -->
+            <div class="tab-content" id="queue-tab">
+                <div class="card">
+                    <h2>Download Queue</h2>
+                    <div id="queue-list" class="download-list"></div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-content" id="history-tab">
+                <div class="card">
+                    <div class="history-header">
+                        <h2>Download History</h2>
+                        <div class="history-actions">
+                            <div class="search-box">
+                                <input type="text" id="history-search" placeholder="Search...">
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="clearHistory()" style="margin-left: 1rem;">Clear History</button>
+                        </div>
+                    </div>
+                    <div id="history-list" class="download-list"></div>
+                    <button id="load-more-history" class="btn btn-secondary">Load More</button>
+                </div>
+
+                <div class="card">
+                    <h3>Statistics</h3>
+                    <div id="stats-container" class="stats-grid"></div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings-tab">
+                <div class="card">
+                    <h2>Settings</h2>
+                    <form id="settings-form">
+                        <div class="form-group">
+                            <label for="download-path">Download Directory</label>
+                            <input type="text" id="download-path" placeholder="C:\Downloads">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="concurrent-downloads">Concurrent Downloads</label>
+                            <input type="number" id="concurrent-downloads" min="1" max="5" value="3">
+                        </div>
+
+                        <div class="options-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="default-metadata" checked>
+                                <span>Embed Metadata by Default</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="default-thumbnail" checked>
+                                <span>Embed Thumbnail by Default</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="default-subtitles">
+                                <span>Embed Subtitles by Default</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
