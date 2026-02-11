@@ -184,12 +184,32 @@ class WebDownloader:
                     return
                 
                 try:
+                    # Extract info first to check for direct URL
                     info = ydl.extract_info(item.url, download=False)
                     item.title = info.get('title', 'Unknown')
                     item.channel = info.get('uploader') or info.get('channel')
                     item.duration = info.get('duration_string')
                     item.thumbnail_url = info.get('thumbnail')
                     self.emit_event('download_progress', item.to_dict())
+
+                    # Check for direct URL (Single File)
+                    # If requested_formats is present, it's a merged format (Server Download required)
+                    # If not present, and url is present, it's a single file (Direct Download possible)
+                    if not info.get('requested_formats') and info.get('url'):
+                        direct_url = info.get('url')
+                        item.status = DownloadStatus.COMPLETED.value
+                        item.progress = 100
+                        item.direct_url = direct_url # Add dynamically
+                        self.log(f"[Direct Link] Ready: {item.title}")
+                        self.download_queue.move_to_history(item)
+                        # self.database.add_download(item) # Local DB disabled
+                        
+                        # Emit with direct_url
+                        data = item.to_dict()
+                        data['direct_url'] = direct_url
+                        self.emit_event('download_completed', data)
+                        return # Skip server download
+
                 except Exception as e:
                     logging.warning(f"Info extraction failed: {e}")
                     item.title = "Unknown Title"

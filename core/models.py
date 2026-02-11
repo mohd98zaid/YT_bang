@@ -59,6 +59,7 @@ class DownloadItem:
         self.channel: Optional[str] = None
         self.duration: Optional[str] = None
         self.thumbnail_url: Optional[str] = None
+        self.direct_url: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
@@ -80,6 +81,7 @@ class DownloadItem:
             'category': self.category,
             'channel': self.channel,
             'duration': self.duration,
+            'direct_url': self.direct_url,
             'error': self.error
         }
     
@@ -105,6 +107,7 @@ class DownloadItem:
         item.category = data.get('category', 'General')
         item.channel = data.get('channel')
         item.duration = data.get('duration')
+        item.direct_url = data.get('direct_url')
         item.error = data.get('error')
         return item
 

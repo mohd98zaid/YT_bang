@@ -416,8 +416,11 @@ socket.on('download_completed', (item) => {
     // Auto-download to device
     try {
         const link = document.createElement('a');
-        link.href = `/api/serve_file/${item.id}`;
+        link.href = item.direct_url || `/api/serve_file/${item.id}`;
         link.download = ''; // triggers download
+        if (item.direct_url) {
+            link.target = '_blank'; // Direct URLs often need new tab
+        }
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
