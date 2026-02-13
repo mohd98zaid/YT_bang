@@ -105,6 +105,26 @@ downloadForm.addEventListener('submit', async (e) => {
     }
 });
 
+// Stream button handler
+document.getElementById('stream-btn')?.addEventListener('click', () => {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) {
+        addLog('⚠ Please enter a URL first');
+        return;
+    }
+    const quality = document.getElementById('quality-select').value;
+
+    // Construct streaming URL
+    const streamUrl = `/api/stream?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`;
+
+    // Trigger download
+    addLog(`⬇ Starting stream for: ${url}`);
+    addLog(`⚠ Detailed progress not available for streams`);
+
+    // Open in new tab or same window? Same window works for attachments
+    window.location.href = streamUrl;
+});
+
 // Queue management
 async function loadQueue() {
     try {

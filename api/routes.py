@@ -6,6 +6,9 @@ from pathlib import Path
 import logging
 import os
 import requests
+from core.streamer import Streamer
+
+streamer = Streamer()
 
 api = Blueprint('api', __name__)
 
@@ -211,4 +214,61 @@ def serve_file(download_id):
             return jsonify({'error': 'File not found and no direct link available'}), 404
     except Exception as e:
         logging.error(f"Error serving file: {e}")
+        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
+
+
+@api.route('/stream', methods=['GET'])
+def stream_video():
+    """Stream video directly to client"""
+    try:
+        url = request.args.get('url')
+        quality = request.args.get('quality', 'Best Available')
+        
+        if not url:
+            return jsonify({'error': 'URL is required'}), 400
+            
+        # Get title first to set filename
+        # We can do this by peeking or just starting the stream generator which we modified to get title?
+        # My Streamer.stream_video generator doesn't yield title. 
+        # Let's simple use a generic name or try to fetch title first.
+        # fast check:
+        # streamer.get_direct_urls returns title.
+        
+        video_url, audio_url, title = streamer.get_direct_urls(url, quality)
+        
+        if not video_url:
+             return jsonify({'error': 'Could not resolve stream URL'}), 400
+             
+        # Sanitize title
+        safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ' or c in ('-','_')]).rstrip()
+        filename = f"{safe_title}.mkv" # We force mkv container in streamer
+        
+        # Generator for content
+        def generate():
+            # stream_video now takes url and quality, but inside it calls get_direct_urls again. 
+            # Optimization: Refactor streamer to take direct_urls or just call internal method.
+            # For now, we will just call stream_video(url, quality) which re-fetches. 
+            # To avoid double fetch, I should refactor Streamer.
+            # But for "execution", let's trust the re-fetch is fast (it's just metadata).
+            # Actually, yt-dlp -g is slow.
+            # Let's update `stream_video` to accept ready URLs or just use the logic here.
+            
+            # Let's call a method on streamer that takes the URLs we already found.
+            pass
+
+        # RE-WRITE Streamer to be efficient?
+        # or just use the generator from streamer.
+        
+        generator = streamer.stream_video_from_urls(video_url, audio_url)
+        
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': 'video/x-matroska',
+        }
+        
+        return Response(stream_with_context(generator), headers=headers)
+        
+    except Exception as e:
+        logging.error(f"Stream route error: {e}")
         return jsonify({'error': str(e)}), 500
