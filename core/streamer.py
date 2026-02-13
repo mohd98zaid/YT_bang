@@ -14,23 +14,13 @@ class Streamer:
 
     def get_direct_urls(self, url: str, quality: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
-        Get direct video and audio URLs using yt-dlp -g.
+        Get direct video and audio URLs using yt-dlp library.
         Returns (video_url, audio_url, title)
         """
         try:
-            # First get metadata for title
-            # Then get URLs
-            # simplified: get json dump
-            command = [
-                'yt-dlp',
-                '--dump-json',
-                '--no-warnings',
-                url
-            ]
+            import yt_dlp
             
             # Map quality to format selector
-            # This is a simplified mapping, could be more robust
-            # Map quality to format selector using robust logic similar to WebDownloader
             if '2160p' in quality or '4K' in quality:
                 format_selector = 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
             elif '1440p' in quality or '2K' in quality:
@@ -46,35 +36,29 @@ class Streamer:
             else:
                  format_selector = 'bestvideo+bestaudio/best'
             
-            command.extend(['-f', format_selector])
+            ydl_opts = {
+                'format': format_selector,
+                'quiet': True,
+                'no_warnings': True,
+                'noplaylist': True,
+            }
 
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8', 
-                errors='ignore'
-            )
-            stdout, stderr = process.communicate()
-            
-            if process.returncode != 0:
-                self.logger.error(f"yt-dlp error: {stderr}")
-                return None, None, None
-
-            import json
-            info = json.loads(stdout)
-            
-            title = info.get('title', 'video')
-            
-            # If requested_formats exists, it's a merge
-            if 'requested_formats' in info:
-                video_url = info['requested_formats'][0]['url']
-                audio_url = info['requested_formats'][1]['url']
-                return video_url, audio_url, title
-            else:
-                # Single file
-                return info.get('url'), None, title
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                
+                title = info.get('title', 'video')
+                
+                # If requested_formats exists, it's a merge
+                if 'requested_formats' in info:
+                    video_url = info['requested_formats'][0]['url']
+                    audio_url = info['requested_formats'][1]['url']
+                    return video_url, audio_url, title
+                elif 'url' in info:
+                    # Single file
+                    return info['url'], None, title
+                else:
+                    self.logger.error("No URL found in info")
+                    return None, None, None
 
         except Exception as e:
             self.logger.error(f"Error getting direct URLs: {e}")
