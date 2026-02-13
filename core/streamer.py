@@ -80,6 +80,7 @@ class Streamer:
             if return_code != 0:
                 stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
                 self.logger.error(f"Stream process failed with code {return_code}: {stderr_output}")
+                raise Exception(f"Stream generation failed: {stderr_output}")
                 
         except Exception as e:
             self.logger.error(f"Streaming error: {e}")

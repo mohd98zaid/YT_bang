@@ -231,25 +231,34 @@ def stream_video():
         # Log attempts
         logging.info(f"Stream request for: {url} | Quality: {quality}")
         
-        # Get direct URLs
-        video_url, audio_url, title = streamer.get_direct_urls(url, quality)
+        # Determine filename (generic to avoid pre-fetch delay/error)
+        filename = "video_stream.mkv"
         
-        if not video_url:
-             logging.error(f"Failed to resolve stream URL for {url}")
-             return f"Error: Could not resolve stream URL. Please try again or check the URL.", 400
-             
-        # Sanitize title
-        safe_title = "".join([c for c in title if c.isalpha() or c.isdigit() or c==' ' or c in ('-','_')]).rstrip()
-        filename = f"{safe_title}.mkv" # We force mkv container in streamer
-        
+        # Initialize generator
         generator = streamer.stream_video(url, quality)
         
+        # Pre-flight check: try to get the first chunk
+        try:
+            first_chunk = next(generator)
+        except StopIteration:
+            logging.error("Stream generator yielded no data (immediate failure)")
+            return "Error: Stream failed to start. Please check the URL or try again later.", 400
+        except Exception as e:
+            logging.error(f"Stream generator raised exception on start: {e}")
+            return f"Error: Stream failed to start. {str(e)}", 500
+            
+        # If we got here, stream started successfully.
+        # Create a new generator that yields the first chunk then the rest
+        def chain_generator(first, gen):
+            yield first
+            yield from gen
+            
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"',
             'Content-Type': 'video/x-matroska',
         }
         
-        return Response(stream_with_context(generator), headers=headers)
+        return Response(stream_with_context(chain_generator(first_chunk, generator)), headers=headers)
         
     except Exception as e:
         logging.error(f"Stream route error: {e}")
