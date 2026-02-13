@@ -5,8 +5,7 @@ from typing import Generator, Optional, Tuple
 
 class Streamer:
     """
-    Handles streaming downloads by creating a pipe:
-    YouTube -> [Video URL, Audio URL] -> FFmpeg -> stdout -> Client
+    Handles streaming downloads by piping yt-dlp output directly to the client.
     """
 
     def __init__(self):
@@ -14,96 +13,52 @@ class Streamer:
 
     def get_direct_urls(self, url: str, quality: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
-        Get direct video and audio URLs using yt-dlp library.
-        Returns (video_url, audio_url, title)
+        Legacy method kept for compatibility, but just returns title now if possible.
         """
         try:
             import yt_dlp
-            
-            # Map quality to format selector
-            if '2160p' in quality or '4K' in quality:
-                format_selector = 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
-            elif '1440p' in quality or '2K' in quality:
-                format_selector = 'bestvideo[height<=1440]+bestaudio/best[height<=1440]/best'
-            elif '1080p' in quality:
-                format_selector = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
-            elif '720p' in quality:
-                format_selector = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
-            elif '480p' in quality:
-                format_selector = 'bestvideo[height<=480]+bestaudio/best[height<=480]/best'
-            elif '360p' in quality:
-                format_selector = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best'
-            else:
-                 format_selector = 'bestvideo+bestaudio/best'
-            
-            ydl_opts = {
-                'format': format_selector,
-                'quiet': True,
-                'no_warnings': True,
-                'noplaylist': True,
-            }
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
                 info = ydl.extract_info(url, download=False)
-                
-                title = info.get('title', 'video')
-                
-                # If requested_formats exists, it's a merge
-                if 'requested_formats' in info:
-                    video_url = info['requested_formats'][0]['url']
-                    audio_url = info['requested_formats'][1]['url']
-                    return video_url, audio_url, title
-                elif 'url' in info:
-                    # Single file
-                    return info['url'], None, title
-                else:
-                    self.logger.error("No URL found in info")
-                    return None, None, None
-
-        except Exception as e:
-            self.logger.error(f"Error getting direct URLs: {e}")
-            return None, None, None
+                return "url_placeholder", "url_placeholder", info.get('title', 'video')
+        except:
+             return None, None, "video"
 
     def stream_video(self, url: str, quality: str = 'Best Available') -> Generator[bytes, None, None]:
         """
-        Generates a stream of bytes from ffmpeg stdout (or direct curl if single file).
+        Generates a stream of bytes from yt-dlp stdout.
         """
-        video_url, audio_url, title = self.get_direct_urls(url, quality)
-        
-        if not video_url:
-            self.logger.error("Could not retrieve video URL")
-            yield b"" # End stream
-            return
-
-        self.logger.info(f"Starting stream for {title}")
-
-        if audio_url:
-            # FFmpeg merge command
-            # -i video -i audio -c copy -f matroska -
-            # We use matroska (mkv) container because it supports streaming (mp4 requires seeking for moov atom)
-            command = [
-                'ffmpeg',
-                '-re', # Read input at native frame rate (optional, but good for streaming to player) - logic check: we want download as fast as possible?
-                # Actually for download we do NOT want -re. we want fast.
-                '-i', video_url,
-                '-i', audio_url,
-                '-c', 'copy', # Copy streams, no re-encoding (Fast!)
-                '-f', 'matroska', # mkv container is streamable
-                '-'
-            ]
+        # Command to stream to stdout
+        # Map quality to format selector
+        if '2160p' in quality or '4K' in quality:
+            format_selector = 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
+        elif '1440p' in quality or '2K' in quality:
+            format_selector = 'bestvideo[height<=1440]+bestaudio/best[height<=1440]/best'
+        elif '1080p' in quality:
+            format_selector = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+        elif '720p' in quality:
+            format_selector = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
+        elif '480p' in quality:
+            format_selector = 'bestvideo[height<=480]+bestaudio/best[height<=480]/best'
+        elif '360p' in quality:
+            format_selector = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best'
         else:
-            # Single stream
-            command = [
-                'ffmpeg',
-                '-i', video_url,
-                '-c', 'copy',
-                '-f', 'matroska', # Consistently return mkv for streaming stability
-                '-'
-            ]
+            format_selector = 'bestvideo+bestaudio/best'
 
-        # Use -loglevel error to avoid stderr polluting if we were mixing (we are not, but good practice)
-        command.extend(['-loglevel', 'error'])
-
+        command = [
+            'yt-dlp',
+            '--format', format_selector,
+            '-o', '-',          # Output to stdout
+            '--no-part',        # No .part files
+            '--quiet',          # Suppress progress output
+            '--no-warnings',    # Suppress warnings
+            '--no-playlist',    # Single video only
+            '--force-ipv4',     # Force IPv4 to avoid IPv6 blocks
+            url
+        ]
+        
+        self.logger.info(f"Starting direct yt-dlp piping for: {url}")
+        
+        # Start the process
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -112,15 +67,20 @@ class Streamer:
         )
 
         try:
+            # Read stdout chunk by chunk
             while True:
-                chunk = process.stdout.read(4096 * 4)
+                chunk = process.stdout.read(8192)
                 if not chunk:
                     break
                 yield chunk
-                
-            process.stdout.close()
-            process.wait()
             
+            process.stdout.close()
+            return_code = process.wait()
+            
+            if return_code != 0:
+                stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
+                self.logger.error(f"Stream process failed with code {return_code}: {stderr_output}")
+                
         except Exception as e:
             self.logger.error(f"Streaming error: {e}")
             process.kill()
@@ -128,7 +88,3 @@ class Streamer:
         finally:
             if process.poll() is None:
                 process.kill()
-
-    def get_title(self, url):
-        # Helper to get title quickly if needed, but get_direct_urls does it.
-        pass
