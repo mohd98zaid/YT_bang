@@ -114,8 +114,9 @@ document.getElementById('stream-btn')?.addEventListener('click', () => {
     }
     const quality = document.getElementById('quality-select').value;
 
-    // Construct streaming URL
-    const streamUrl = `/api/stream?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`;
+    // Construct streaming URL with timestamp to prevent caching
+    const timestamp = new Date().getTime();
+    const streamUrl = `/api/stream?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}&t=${timestamp}`;
 
     // Trigger download
     addLog(`⬇ Starting stream for: ${url}`);

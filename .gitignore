@@ -59,4 +59,5 @@ Thumbs.db
 # Testing
 .pytest_cache/
 .coverage
-htmlcov/
+# Temp streams
+temp_streams/

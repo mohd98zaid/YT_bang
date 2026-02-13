@@ -2,32 +2,37 @@ import subprocess
 import logging
 import threading
 from typing import Generator, Optional, Tuple
+import os
+import time
+import uuid
+import shutil
+from pathlib import Path
 
 class Streamer:
     """
-    Handles streaming downloads by piping yt-dlp output directly to the client.
+    Handles streaming downloads using a disk buffer for reliability.
+    yt-dlp -> Temp File -> Client
     """
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.temp_dir = Path("temp_streams")
+        self.temp_dir.mkdir(exist_ok=True)
 
     def get_direct_urls(self, url: str, quality: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
-        Legacy method kept for compatibility, but just returns title now if possible.
+        Legacy method kept for compatibility.
         """
-        try:
-            import yt_dlp
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                info = ydl.extract_info(url, download=False)
-                return "url_placeholder", "url_placeholder", info.get('title', 'video')
-        except:
-             return None, None, "video"
+        return None, None, "video"
 
     def stream_video(self, url: str, quality: str = 'Best Available') -> Generator[bytes, None, None]:
         """
-        Generates a stream of bytes from yt-dlp stdout.
+        Downloads to a temp file and yields its content as it grows.
         """
-        # Command to stream to stdout
+        # Unique ID for this stream
+        stream_id = str(uuid.uuid4())
+        temp_file = self.temp_dir / f"{stream_id}.mkv"
+        
         # Map quality to format selector
         if '2160p' in quality or '4K' in quality:
             format_selector = 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
@@ -47,45 +52,81 @@ class Streamer:
         command = [
             'yt-dlp',
             '--format', format_selector,
-            '-o', '-',          # Output to stdout
-            '--no-part',        # No .part files
+            '-o', str(temp_file),
+            '--no-part',        # Write directly to file (no .part) so we can read it immediately
             '--quiet',          # Suppress progress output
             '--no-warnings',    # Suppress warnings
             '--no-playlist',    # Single video only
-            '--force-ipv4',     # Force IPv4 to avoid IPv6 blocks
+            '--force-ipv4',     # Force IPv4
+            '--merge-output-format', 'mkv', # Ensure container is mkv
             url
         ]
         
-        self.logger.info(f"Starting direct yt-dlp piping for: {url}")
+        self.logger.info(f"Starting buffered stream for: {url} -> {temp_file}")
         
-        # Start the process
+        # Start download in background
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=1024 * 1024
+            stderr=subprocess.PIPE
         )
+        
+        # Wait a brief moment for file to be created
+        start_time = time.time()
+        while not temp_file.exists():
+            if time.time() - start_time > 10:
+                # Timeout waiting for file
+                process.kill()
+                stderr = process.stderr.read().decode('utf-8', errors='ignore') if process.stderr else ""
+                self.logger.error(f"Timeout waiting for temp file: {stderr}")
+                raise Exception(f"Stream failed to start (Timeout): {stderr}")
+            if process.poll() is not None:
+                # Process died before creating file
+                stderr = process.stderr.read().decode('utf-8', errors='ignore') if process.stderr else ""
+                self.logger.error(f"Download process died: {stderr}")
+                raise Exception(f"Stream failed to start (Process died): {stderr}")
+            time.sleep(0.1)
 
+        # File exists, start reading
         try:
-            # Read stdout chunk by chunk
-            while True:
-                chunk = process.stdout.read(8192)
-                if not chunk:
-                    break
-                yield chunk
-            
-            process.stdout.close()
-            return_code = process.wait()
-            
-            if return_code != 0:
-                stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
-                self.logger.error(f"Stream process failed with code {return_code}: {stderr_output}")
-                raise Exception(f"Stream generation failed: {stderr_output}")
-                
+            with open(temp_file, 'rb') as f:
+                while True:
+                    # Check if process is still running
+                    retcode = process.poll()
+                    
+                    # Read available data
+                    chunk = f.read(8192)
+                    if chunk:
+                        yield chunk
+                    else:
+                        # No data read. 
+                        if retcode is not None:
+                            # Process finished. verified by poll(). 
+                            # Check if we are really at EOF or just faster than writer?
+                            # If process finished, and we read empty chunk, we are done.
+                            # But double check stderr if it failed?
+                            if retcode != 0:
+                                stderr = process.stderr.read().decode('utf-8', errors='ignore') if process.stderr else ""
+                                self.logger.error(f"Stream finished with error {retcode}: {stderr}")
+                                # If we already sent data, we can't raise exception to client easily (headers sent).
+                                # But we can stop yielding.
+                            break
+                        else:
+                            # Process still running, just waiting for data
+                            time.sleep(0.1)
+                            
         except Exception as e:
             self.logger.error(f"Streaming error: {e}")
-            process.kill()
             raise e
         finally:
+            # Cleanup
             if process.poll() is None:
                 process.kill()
+            
+            # Use a separate thread or delayed cleanup because file might be locked?
+            # On Windows, we can't delete open file. 'f' is closed by with block exit.
+            try:
+                if temp_file.exists():
+                    os.remove(temp_file)
+            except Exception as cleanup_error:
+                self.logger.error(f"Failed to delete temp file {temp_file}: {cleanup_error}")
