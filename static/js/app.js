@@ -119,7 +119,8 @@ document.getElementById('stream-btn')?.addEventListener('click', () => {
 
     // Trigger download
     addLog(`⬇ Starting stream for: ${url}`);
-    addLog(`⚠ Detailed progress not available for streams`);
+    addLog(`ℹ If successful, download will start immediately.`);
+    addLog(`ℹ If an error occurs, you will see an error page.`);
 
     // Open in new tab or same window? Same window works for attachments
     window.location.href = streamUrl;
