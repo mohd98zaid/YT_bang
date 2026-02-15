@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 
 class ConfigManager:
@@ -11,7 +12,7 @@ class ConfigManager:
         self.config_file = self.app_data_dir / "config.json"
         
         self.default_config = {
-            "download_path": str(Path.home() / "Downloads"),
+            "download_path": "/tmp" if os.environ.get('VERCEL') else str(Path.home() / "Downloads"),
             "concurrent_downloads": 3,
             "max_retries": 3,
             "embed_thumbnail": True,

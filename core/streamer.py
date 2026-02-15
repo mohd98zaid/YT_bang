@@ -34,20 +34,41 @@ class Streamer:
         temp_file = self.temp_dir / f"{stream_id}.mkv"
         
         # Map quality to format selector
-        if '2160p' in quality or '4K' in quality:
-            format_selector = 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
-        elif '1440p' in quality or '2K' in quality:
-            format_selector = 'bestvideo[height<=1440]+bestaudio/best[height<=1440]/best'
-        elif '1080p' in quality:
-            format_selector = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
-        elif '720p' in quality:
-            format_selector = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
-        elif '480p' in quality:
-            format_selector = 'bestvideo[height<=480]+bestaudio/best[height<=480]/best'
-        elif '360p' in quality:
-            format_selector = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best'
+        # On Vercel, we can't use ffmpeg, so we must select formats that don't need merging
+        is_vercel = os.environ.get('VERCEL')
+        
+        if is_vercel:
+            # Single file selection only
+            if '2160p' in quality or '4K' in quality:
+                format_selector = 'best[height<=2160][ext=mp4]/best[height<=2160]/best'
+            elif '1440p' in quality or '2K' in quality:
+                format_selector = 'best[height<=1440][ext=mp4]/best[height<=1440]/best'
+            elif '1080p' in quality:
+                format_selector = 'best[height<=1080][ext=mp4]/best[height<=1080]/best'
+            elif '720p' in quality:
+                format_selector = 'best[height<=720][ext=mp4]/best[height<=720]/best'
+            elif '480p' in quality:
+                format_selector = 'best[height<=480][ext=mp4]/best[height<=480]/best'
+            elif '360p' in quality:
+                format_selector = 'best[height<=360][ext=mp4]/best[height<=360]/best'
+            else:
+                format_selector = 'best[ext=mp4]/best'
         else:
-            format_selector = 'bestvideo+bestaudio/best'
+            # Standard selection with merging
+            if '2160p' in quality or '4K' in quality:
+                format_selector = 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
+            elif '1440p' in quality or '2K' in quality:
+                format_selector = 'bestvideo[height<=1440]+bestaudio/best[height<=1440]/best'
+            elif '1080p' in quality:
+                format_selector = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+            elif '720p' in quality:
+                format_selector = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
+            elif '480p' in quality:
+                format_selector = 'bestvideo[height<=480]+bestaudio/best[height<=480]/best'
+            elif '360p' in quality:
+                format_selector = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best'
+            else:
+                format_selector = 'bestvideo+bestaudio/best'
 
         command = [
             'yt-dlp',

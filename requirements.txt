@@ -7,7 +7,7 @@ Flask-CORS>=4.0.0
 
 # Video downloading (same as desktop app)
 yt-dlp>=2026.01.01
-static-ffmpeg>=2.5
+# static-ffmpeg>=2.5 # Removed for Vercel compatibility
 
 # WebSocket support
 python-socketio>=5.11.0

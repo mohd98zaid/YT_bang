@@ -298,6 +298,10 @@ class WebDownloader:
     
     def start_queue_processor(self) -> None:
         """Start the queue processor"""
+        if os.environ.get('VERCEL'):
+             self.log("Running on Vercel - Queue processor disabled")
+             return
+
         if self.queue_processor_thread is None or not self.queue_processor_thread.is_alive():
             self.queue_processor_thread = threading.Thread(
                 target=self.queue_processor, 

@@ -95,6 +95,11 @@ def handle_get_status():
 
 def initialize_ffmpeg():
     """Initialize static-ffmpeg"""
+    # Skip if on Vercel or if import fails
+    if os.environ.get('VERCEL'):
+        logging.info("Running on Vercel - skipping static-ffmpeg initialization")
+        return
+
     try:
         import static_ffmpeg
         static_ffmpeg.add_paths()

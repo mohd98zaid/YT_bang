@@ -14,8 +14,12 @@ class DatabaseManager:
     """Manage SQLite database for download history"""
     
     def __init__(self, db_path: Path = None):
+        import os
         if db_path is None:
-            db_path = Path.home() / ".VideoDownloader" / "history.db"
+            if os.environ.get('VERCEL'):
+                 db_path = Path("/tmp") / "history.db"
+            else:
+                 db_path = Path.home() / ".VideoDownloader" / "history.db"
         
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
